@@ -179,10 +179,16 @@ public:
             return;
         }
 
-        for (const auto &i : vec_) {
+        bool first_element = true;
+        for (auto i = vec_.cbegin(); i != vec_.cend(); ++i) {
+            if (first_element) {
+                first_element = false;
+            } else {
+                out << ',';
+            }
             out << '\n';
             indent(out, idt);
-            i->write(out, idt + 1);
+            (*i)->write(out, idt + 1);
         }
         out << '\n';
         indent(out, idt);
@@ -202,27 +208,25 @@ public:
 
     virtual void write(std::ostream &out, int idt = 0) final
     {
-        out << '{' << '\n';
+        out << '{';
         if (obj_.empty()) {
             out << ('}');
             return;
         }
 
-        auto it = obj_.cbegin();
-        while (it != obj_.cend()) {
-            indent(out, idt + 1);
+        bool first_element = true;
+        for (auto it = obj_.cbegin(); it != obj_.cend(); ++it) {
+            if (first_element) {
+                first_element = false;
+            } else {
+                out << ',';
+            }
+            out << '\n';
+            indent(out, idt);
             process_string(out, it->first);
-            out << ' : ';
+            out << " : ";
             it->second->write(out, idt + 1);
-            out << ',' << '\n';
-            ++it;
         }
-        //the last one
-        indent(out, idt + 1);
-        process_string(out, it->first);
-        out << ' : ';
-        it->second->write(out, idt + 1);
-        //
 
         out << '\n';
         indent(out, idt);
@@ -308,6 +312,11 @@ inline std::shared_ptr<JsonNode> parse_json(std::istream &in)
             ins << p;
             in.get(p);
         }
+        // [...1.0,{...] when the loop ends, char p has ',' value, and the stream 'in' now points at
+        // char '{' which is incorrect. The designation is parse_* functions will always ends at the
+        // first char after the element parsed.
+        // So the following line is needed.
+        in.unget();
         ins >> res;
         return res;
     };
@@ -320,14 +329,14 @@ inline std::shared_ptr<JsonNode> parse_json(std::istream &in)
             if (in.get() == 'r' && in.get() == 'u' && in.get() == 'e') {
                 return true;
             } else {
-                throw std::runtime_error("Invalid input when parsing bool 'true");
+                throw std::runtime_error("Invalid input when parsing bool 'true'");
             }
         } else {
             {
                 if (in.get() == 'a' && in.get() == 'l' && in.get() == 's' && in.get() == 'e') {
                     return false;
                 } else {
-                    throw std::runtime_error("Invalid input when parsing bool 'false");
+                    throw std::runtime_error("Invalid input when parsing bool 'false'");
                 }
             }
         }
@@ -342,10 +351,69 @@ inline std::shared_ptr<JsonNode> parse_json(std::istream &in)
     if (letter == '"') //string begins
     {
         return std::make_shared<JsonString>(parse_string());
-    } else if (letter == '-' || (letter >= '0' && letter <= '9')) {
+    }
+    //double
+    else if (letter == '-' || (letter >= '0' && letter <= '9')) {
         return std::make_shared<JsonDouble>(parse_double());
-    } else if (letter == 't' || letter == 'f') {
+    }
+    //bool
+    else if (letter == 't' || letter == 'f') {
         return std::make_shared<JsonBool>(parse_bool());
+    }
+    //null
+    else if (letter == 'n') {
+        if (in.get() == 'u' && in.get() == 'l' && in.get() == 'l') {
+            return std::make_shared<JsonNode>();
+        } else {
+            throw std::runtime_error("Invalid input when parsing 'null'");
+        }
+    }
+    // array
+    else if (letter == '[') {
+        auto res = std::make_shared<JsonArray>();
+
+        do {
+            letter = trim_whitespace();
+            if (letter == ',') {
+                letter = trim_whitespace(); //move to next char which is not whitespace
+            }
+            in.unget();
+            res->get_array().push_back(parse_json(in));
+
+            letter = in.peek(); //get the current stream char without extracting it from the stream
+        } while (letter != ']');
+        //now in is at ']'
+        //pass it mannually
+        in.get();
+        return std::move(res);
+    }
+
+    else if (letter == '{') {
+        auto res = std::make_shared<JsonObject>();
+
+        // key-value pair
+        do {
+            letter = trim_whitespace();
+            if (letter == ',') {
+                letter = trim_whitespace(); //move to next char which is not whitespace
+            }
+            if (letter == '"') {
+                std::string key = parse_string();
+                letter = trim_whitespace();
+                if (letter != ':') {
+                    throw std::runtime_error("When Parsing object an ':' missed");
+                }
+                res->get_object()[key] = parse_json(in);
+
+            } else {
+                break;
+            }
+        } while (letter != '}');
+        return std::move(res);
+    }
+
+    else {
+        throw std::runtime_error(std::string("Parser found unexpected character ") + letter);
     }
 }
 

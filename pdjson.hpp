@@ -38,7 +38,7 @@ struct JsonNode
 
     virtual std::string &get_string() { throw std::runtime_error("It's not a string"); }
     virtual double &get_double() { throw std::runtime_error("It's not a number"); }
-    virtual bool &get_boolean() { throw std::runtime_error("It's not a bool"); }
+    virtual bool &get_bool() { throw std::runtime_error("It's not a bool"); }
     virtual std::unordered_map<std::string, std::shared_ptr<JsonNode>> &get_object()
     {
         throw std::runtime_error("It's not an object");
@@ -291,13 +291,18 @@ inline std::shared_ptr<JsonNode> parse_json(std::istream &in)
     };
 
     auto parse_double = [&in]() -> double {
+        //WARNING:
+        //No error checking here
+        // std::stringstream will handle some usual errors, for example, "1.x"  will be converted to "1.0" but the
+        // stream will stay at char 'x' so it's still an erroe parsing.
+        // I don't care who the f**k inputs invaild values
         std::stringstream ins;
         double res;
         in.unget();
 
         char p = static_cast<char>(in.get());
         while (
-            (!in.failbit) //a nice pitfall (when in.get() failed,p will be set as zero so without it this is a deadloop))
+            (!in.fail()) //a nice pitfall (when in.get() failed,p will be set as zero so without it this is a deadloop))
             && (p == '-' || p == 'e' || p == 'E' || p == '.' || p == ',' || p == '+' || p == '-'
                 || (p >= '0' && p <= '9'))) {
             ins << p;
@@ -307,8 +312,30 @@ inline std::shared_ptr<JsonNode> parse_json(std::istream &in)
         return res;
     };
 
+    auto parse_bool = [&in]() -> bool {
+        in.unget();
+        char p;
+        in.get(p);
+        if (p == 't') {
+            if (in.get() == 'r' && in.get() == 'u' && in.get() == 'e') {
+                return true;
+            } else {
+                throw std::runtime_error("Invalid input when parsing bool 'true");
+            }
+        } else {
+            {
+                if (in.get() == 'a' && in.get() == 'l' && in.get() == 's' && in.get() == 'e') {
+                    return false;
+                } else {
+                    throw std::runtime_error("Invalid input when parsing bool 'false");
+                }
+            }
+        }
+    };
+
     char letter = trim_whitespace(); //first_not_white_letter
-    if (letter == 0 || letter == EOF) {
+                                     //    if (letter == 0 || letter == EOF) {
+    if (!in.good()) {
         return std::make_shared<JsonNode>();
     }
 
@@ -317,6 +344,8 @@ inline std::shared_ptr<JsonNode> parse_json(std::istream &in)
         return std::make_shared<JsonString>(parse_string());
     } else if (letter == '-' || (letter >= '0' && letter <= '9')) {
         return std::make_shared<JsonDouble>(parse_double());
+    } else if (letter == 't' || letter == 'f') {
+        return std::make_shared<JsonBool>(parse_bool());
     }
 }
 

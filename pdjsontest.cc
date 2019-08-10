@@ -1,5 +1,6 @@
 #include "pdjson.hpp"
 #include "include/minunit.h"
+#include <limits>
 
 using namespace pd;
 
@@ -14,6 +15,10 @@ MU_TEST(test_base_null_object)
 {
     JsonNode nd;
     mu_check(nd.get_type() == JsonType::kNull);
+
+    std::stringstream ins("");
+    auto res = parse_json(ins);
+    mu_check(res->get_type() == JsonType::kNull);
 }
 
 MU_TEST(test_string_object)
@@ -45,6 +50,44 @@ MU_TEST(test_double_parse)
         mu_assert_double_eq(expect, res);
     };
     TEST_DOUBLE(0.0, "0.0");
+    TEST_DOUBLE(0.0, "0");
+    TEST_DOUBLE(0.0, "-0");
+    TEST_DOUBLE(0.0, "-0.0");
+    TEST_DOUBLE(1.0, "1");
+    TEST_DOUBLE(-1.0, "-1");
+    TEST_DOUBLE(1.5, "1.5");
+    TEST_DOUBLE(-1.5, "-1.5");
+    TEST_DOUBLE(3.1416, "3.1416");
+    TEST_DOUBLE(1E10, "1E10");
+    TEST_DOUBLE(1e10, "1e10");
+    TEST_DOUBLE(1E+10, "1E+10");
+    TEST_DOUBLE(1E-10, "1E-10");
+    TEST_DOUBLE(-1E10, "-1E10");
+    TEST_DOUBLE(-1e10, "-1e10");
+    TEST_DOUBLE(-1E+10, "-1E+10");
+    TEST_DOUBLE(-1E-10, "-1E-10");
+    TEST_DOUBLE(1.234E+10, "1.234E+10");
+    TEST_DOUBLE(1.234E-10, "1.234E-10");
+    TEST_DOUBLE(0.0, "1e-10000"); /* must underflow */
+    TEST_DOUBLE(std::numeric_limits<double>::max(),
+                std::to_string(std::numeric_limits<double>::max()));
+    TEST_DOUBLE(std::numeric_limits<double>::min(),
+                std::to_string(std::numeric_limits<double>::min()));
+}
+
+MU_TEST(test_bool_parse)
+{
+#define TEST_BOOL(expect, json) \
+    do { \
+        std::stringstream ins(json); \
+        mu_check(expect == parse_json(ins)->get_bool()); \
+    } while (0)
+
+    TEST_BOOL(true, "true");
+    //    TEST_BOOL(false, "true"); //failed
+    TEST_BOOL(false, "false");
+    //    TEST_BOOL(false, "fase"); //throw an exception
+    //    TEST_BOOL(true, "true"); //throw an exception
 }
 
 MU_TEST_SUITE(parser_suit)
@@ -53,6 +96,7 @@ MU_TEST_SUITE(parser_suit)
     MU_RUN_TEST(test_string_object);
     MU_RUN_TEST(test_string_parse);
     MU_RUN_TEST(test_double_parse);
+    MU_RUN_TEST(test_bool_parse);
 }
 
 int main()

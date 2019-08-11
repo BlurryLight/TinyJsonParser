@@ -48,6 +48,13 @@ struct JsonNode
         throw std::runtime_error("It's not an array");
     }
 
+    inline void write_to_file(const std::string &filename)
+    {
+        std::ofstream out(filename);
+        if (!out.good())
+            throw(std::runtime_error("Can not open" + filename));
+        this->write(out, 0);
+    }
     virtual ~JsonNode() = default;
 
 private:
@@ -64,14 +71,6 @@ private:
 
 protected:
     JsonType type_;
-
-    inline void write_to_file(const std::string &filename)
-    {
-        std::ofstream out(filename);
-        if (!out.good())
-            throw(std::runtime_error("Can not open" + filename));
-        this->write(out, 0);
-    }
 
     static void process_string(std::ostream &out, const std::string &origin)
     {
@@ -196,6 +195,8 @@ public:
     }
     virtual JsonType get_type() final { return type_; }
     virtual std::vector<std::shared_ptr<JsonNode>> &get_array() { return vec_; }
+
+    std::shared_ptr<JsonNode> &operator[](size_t index) { return vec_[index]; }
 };
 
 struct JsonObject : public JsonNode
@@ -236,6 +237,14 @@ public:
     virtual std::unordered_map<std::string, std::shared_ptr<JsonNode>> &get_object()
     {
         return obj_;
+    }
+
+    std::shared_ptr<JsonNode> &operator[](const std::string &key) { return obj_[key]; }
+
+    template<typename T>
+    void insert(const std::string &key, T value)
+    {
+        obj_[key] = std::make_shared<T>(value);
     }
 };
 

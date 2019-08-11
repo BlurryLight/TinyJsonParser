@@ -150,6 +150,41 @@ MU_TEST(test_object_parse)
     }
 }
 
+//example
+MU_TEST(test_new_json)
+{
+    JsonObject jobj;
+
+    jobj["name"] = std::make_shared<JsonString>("bob");
+    jobj["number"] = std::make_shared<JsonDouble>(1e+9);
+    jobj["Is_Boy"] = std::make_shared<JsonBool>(true);
+    jobj["property"] = std::make_shared<JsonArray>();
+
+    auto &property_array = jobj["property"]->get_array();
+    property_array.push_back(std::make_shared<JsonNode>() //null
+    );
+
+    auto another_obj = std::make_shared<JsonObject>();
+    //another way to insert key-value
+    another_obj->get_object()["nested"] = std::make_shared<JsonBool>(false);
+
+    //third way to insert key-value
+    another_obj->insert<JsonDouble>("weight", 170.6);
+
+    property_array.push_back(another_obj);
+
+    std::ofstream of;
+    of.open("test.json", std::ios::app | std::ios::out);
+    if (!of.is_open()) {
+        jobj.write(std::cout, 0);
+    } else {
+        jobj.write(of, 0);
+    }
+
+    //another way to write-to-file
+    jobj.write_to_file("test1.json");
+}
+
 MU_TEST_SUITE(parser_suit)
 {
     MU_RUN_TEST(test_base_null_object);
@@ -159,6 +194,7 @@ MU_TEST_SUITE(parser_suit)
     MU_RUN_TEST(test_bool_parse);
     MU_RUN_TEST(test_array_parse);
     MU_RUN_TEST(test_object_parse);
+    MU_RUN_TEST(test_new_json);
 }
 
 int main()
